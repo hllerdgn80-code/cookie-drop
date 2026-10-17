@@ -1,0 +1,14 @@
+# wg-easy kullanmadan elle yapılandırma yapacaksanız örnek istemci dosyası.
+# Önemli kısım DNS satırı: AdGuard Home adresine işaret ederek reklamları engeller.
+
+[Interface]
+PrivateKey = <ISTEMCI_OZEL_ANAHTARI>
+Address = 10.8.0.2/24
+DNS = 10.8.1.2
+
+[Peer]
+PublicKey = <SUNUCU_ACIK_ANAHTARI>
+PresharedKey = <ON_PAYLASIMLI_ANAHTAR>
+Endpoint = <SUNUCU_IP>:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
