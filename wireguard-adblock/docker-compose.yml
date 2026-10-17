@@ -1,0 +1,15 @@
+# Mevcut WireGuard sunucusu için reklam engelleyici (AdGuard Home).
+# Portlar yalnızca WireGuard arayüzünün IP'sine bağlanır; internete açılmaz.
+
+services:
+  adguard:
+    image: adguard/adguardhome:v0.107.57
+    container_name: adguard
+    restart: unless-stopped
+    volumes:
+      - ./adguard/work:/opt/adguardhome/work
+      - ./adguard/conf:/opt/adguardhome/conf
+    ports:
+      - "${WG_IP}:53:53/udp"
+      - "${WG_IP}:53:53/tcp"
+      - "${WG_IP}:3000:3000/tcp"
