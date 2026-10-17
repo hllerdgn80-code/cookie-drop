@@ -1,104 +1,107 @@
-# WireGuard VPN + Reklam Engelleyici (AdGuard Home)
+# WireGuard için Reklam Engelleyici (AdGuard Home)
 
-Tek paket: kendi sunucunuzda çalışan bir **WireGuard VPN** ve bu VPN'e bağlı tüm
-cihazlarda reklamları, izleyicileri ve kötü amaçlı alan adlarını engelleyen
-**AdGuard Home**.
+**Halihazırda çalışan** bir WireGuard sunucusuna eklenen reklam engelleyici.
+VPN ayarlarınıza dokunmaz; VPN'e bağlı cihazların DNS sorgularını AdGuard Home'dan
+geçirerek reklamları, izleyicileri ve zararlı alan adlarını engeller.
 
 ```
-Telefon / PC ──WireGuard──▶ wg-easy (10.8.1.3) ──▶ İnternet
-                                │
-                                └─ DNS sorguları ─▶ AdGuard Home (10.8.1.2)
-                                                     reklam alan adlarını engeller
+Telefon / PC ──WireGuard (mevcut)──▶ Sunucu ──▶ İnternet
+                                       │
+                                       └─ DNS ─▶ AdGuard Home (wg0 IP'si, ör. 10.8.0.1)
 ```
+
+AdGuard Home yalnızca WireGuard arayüzünün IP'sini dinler. İnternete hiçbir port açılmaz.
 
 ## İçerik
 
 | Dosya | Açıklama |
 |---|---|
-| `docker-compose.yml` | WireGuard (wg-easy) + AdGuard Home servisleri |
-| `setup.sh` | Docker kurar, `.env` dosyasını oluşturur, servisleri başlatır |
-| `.env.example` | Ayar şablonu (sunucu IP'si, panel şifresi özeti) |
-| `client.conf.example` | Elle yapılandırma için örnek istemci dosyası |
-
-## Gereksinimler
-
-- Ubuntu/Debian bir VPS (1 vCPU / 512 MB RAM yeterli)
-- Sağlayıcı güvenlik duvarında açık portlar: **51820/UDP** (VPN) ve **51821/TCP** (web paneli)
+| `docker-compose.yml` | AdGuard Home servisi |
+| `install.sh` | WireGuard IP'sini bulur, Docker'ı kurar (gerekirse), AdGuard'ı başlatır |
+| `dns-redirect.sh` | İstemci dosyalarını değiştirmeden tüm DNS'i AdGuard'a yönlendirir (isteğe bağlı) |
 
 ## Kurulum
 
+Klasörü WireGuard sunucusuna kopyalayın ve şunu çalıştırın:
+
 ```bash
-# paketi sunucuya kopyalayın, sonra:
 cd wireguard-adblock
-sudo ./setup.sh
+sudo ./install.sh          # arayüzün adı wg0 değilse: sudo ./install.sh <arayuz>
 ```
 
-Betik sunucu IP'sini ve panel şifresini sorar, ardından her şeyi başlatır.
+### 1. AdGuard Home ilk kurulumu (bir kez)
 
-### 1. İstemci oluşturma
+VPN'e **bağlıyken** `http://<WG_IP>:3000` adresini açın (ör. `http://10.8.0.1:3000`):
 
-1. `http://SUNUCU_IP:51821` adresine gidin, şifrenizle giriş yapın.
-2. **+ New Client** ile her cihaz için bir istemci oluşturun.
-3. Telefonda WireGuard uygulamasından QR kodu okutun; bilgisayarda `.conf`
-   dosyasını indirip WireGuard'a içe aktarın.
-
-İstemci dosyalarında `DNS = 10.8.1.2` otomatik olarak gelir; reklam engelleme
-bu sayede çalışır.
-
-### 2. AdGuard Home ilk kurulumu (bir kez)
-
-VPN'e **bağlıyken** `http://10.8.1.2:3000` adresini açın:
-
-1. **Yönetici Web Arayüzü**: Tüm arayüzler, port **80**
+1. **Yönetici Web Arayüzü**: Tüm arayüzler, port **3000**. Port 3000'de kalmalı, çünkü yalnızca bu port yayınlanıyor.
 2. **DNS sunucusu**: Tüm arayüzler, port **53**
-3. Kullanıcı adı/şifre belirleyin ve bitirin.
+3. Kullanıcı adı ve şifre belirleyin.
 
-Bundan sonra panel `http://10.8.1.2` adresindedir (yalnızca VPN içinden erişilebilir,
-internete açık değildir).
+### 2. Cihazları AdGuard'a yönlendirin
+
+İki yoldan birini seçin:
+
+**A) İstemci dosyalarını düzenleyin.** Her cihazın WireGuard ayarında `[Interface]` altındaki DNS satırını şöyle değiştirin:
+
+```ini
+DNS = 10.8.0.1   # kendi wg0 IP'niz
+```
+
+Telefonda WireGuard uygulamasında tünele dokunun, **Düzenle**'yi seçin, DNS sunucularını değiştirin ve kaydedin.
+
+**B) Sunucuda yönlendirme yapın (istemcilere dokunmadan):**
+
+```bash
+sudo ./dns-redirect.sh wg0
+```
+
+Betik VPN'den gelen tüm 53. port DNS sorgularını AdGuard'a yönlendirir. Yeniden başlatmadan
+sonra da kalıcı olması için betiğin yazdığı `PostUp`/`PostDown` satırlarını
+`/etc/wireguard/wg0.conf` dosyasına ekleyin. Kaldırmak için: `sudo ./dns-redirect.sh wg0 --remove`
+
+> Not: Cihazda şifreli DNS (Android'de "Özel DNS", tarayıcıda "Güvenli DNS") açıksa
+> sorgular bu yönlendirmeyi atlar. En sağlam yol A seçeneği ile birlikte bu ayarları kapatmaktır.
 
 ### 3. Önerilen engelleme listeleri
 
-AdGuard Home → **Filtreler → DNS engelleme listeleri → Engelleme listesi ekle → Özel liste ekle**:
+AdGuard → **Filtreler → DNS engelleme listeleri → Engelleme listesi ekle → Özel liste ekle**:
 
 | Liste | URL |
 |---|---|
 | AdGuard DNS filter (varsayılan) | `https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt` |
 | OISD Big | `https://big.oisd.nl` |
 | Hagezi Multi PRO | `https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt` |
-| Türkçe reklam listesi (AdGuard Turkish) | `https://adguardteam.github.io/HostlistsRegistry/assets/filter_26.txt` |
+| AdGuard Turkish (Türkçe reklamlar) | `https://adguardteam.github.io/HostlistsRegistry/assets/filter_26.txt` |
 
-Önerilen ek ayarlar (**Ayarlar → DNS ayarları**):
-- Üst akış DNS: `https://dns.cloudflare.com/dns-query` ve `https://dns.quad9.net/dns-query`
-- Önbellek boyutu: 4 MB ile 16 MB arası
-- **Ayarlar → Genel ayarlar**: "Güvenli Tarama" açık
+**Ayarlar → DNS ayarları → Üst akış DNS** için önerilenler: `https://dns.cloudflare.com/dns-query`
+ve `https://dns.quad9.net/dns-query`.
 
-## Doğrulama
+## Test
 
 VPN'e bağlıyken:
 
 ```bash
-nslookup doubleclick.net 10.8.1.2   # 0.0.0.0 dönmeli → engellendi
+nslookup doubleclick.net 10.8.0.1   # 0.0.0.0 dönmeli, yani engellendi
+nslookup doubleclick.net 1.1.1.1    # B seçeneği açıksa bu da 0.0.0.0 dönmeli
 ```
 
-ya da tarayıcıdan https://d3ward.github.io/toolz/adblock adresinde test edin.
-AdGuard panelindeki **Sorgu günlüğü** engellenen istekleri gösterir.
+Tarayıcı testi için https://d3ward.github.io/toolz/adblock adresini açın. Engellenen istekler
+AdGuard'daki **Sorgu günlüğü** ekranında görünür.
+
+## Sık karşılaşılan sorunlar
+
+- **`install.sh` arayüzü bulamıyor**: `ip a` ile WireGuard arayüzünün adını kontrol edin
+  ve adı betiğe parametre olarak verin.
+- **VPN'e bağlıyken internet çalışmıyor**: AdGuard kapalıysa DNS çözümlenmez. `docker compose ps` ile
+  durumunu kontrol edin, gerekirse istemcide DNS'i geçici olarak `1.1.1.1` yapın.
+- **Bir site bozuldu**: AdGuard → Sorgu günlüğü → ilgili alan adı → **Engellemeyi kaldır**.
+- **YouTube reklamları**: Videodaki reklamlar YouTube ile aynı alan adından geldiği için DNS ile engellenemez.
 
 ## Bakım
 
 ```bash
 docker compose pull && docker compose up -d   # güncelle
-docker compose logs -f wg-easy                # VPN günlükleri
 docker compose down                           # durdur
 ```
 
-Yedeklenecek klasörler: `wireguard/` (VPN anahtarları), `adguard/` (AdGuard ayarları), `.env`.
-
-## Sık karşılaşılan sorunlar
-
-- **Bağlanıyor ama internet yok**: Sağlayıcının güvenlik duvarında 51820/UDP açık mı?
-  `.env` içindeki `WG_HOST` doğru genel IP mi?
-- **Reklamlar hâlâ görünüyor**: Tarayıcıda "Güvenli DNS (DoH)" kapalı olmalı, aksi halde
-  tarayıcı VPN DNS'ini atlar. YouTube reklamları DNS ile engellenemez.
-- **Bir site bozuldu**: AdGuard → Sorgu günlüğü → ilgili alan adında **Engellemeyi kaldır**.
-- **Web panelini internete açmak istemiyorum**: `.env` içinde `WG_UI_BIND=127.0.0.1`
-  yapın ve `ssh -L 51821:localhost:51821 kullanici@SUNUCU_IP` ile erişin.
+Yedeklemek için `adguard/` klasörünü saklayın.
